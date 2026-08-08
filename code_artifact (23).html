@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>เกมเอาชีวิตรอด: หนี-ซ่อน-สู้ (RUN - HIDE - FIGHT)</title>
+    <!-- โหลด Tailwind CSS สำหรับการจัดสไตล์อย่างรวดเร็วและ Responsive -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- โหลดฟอนต์ Kanit จาก Google Fonts ให้อ่านง่าย สไตล์ไทย -->
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- โหลด FontAwesome สำหรับไอคอนต่างๆ ในเกม -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        /* ตั้งค่าฟอนต์เริ่มต้นและภาพพื้นหลัง */
+        body { 
+            font-family: 'Kanit', sans-serif; 
+            background-color: #0f172a; /* สีพื้นหลังสำรอง */
+            background-image: url('ChatGPT Image Aug 8, 2026, 09_01_07 AM.png');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            /* ป้องกันการลากคลุมข้อความโดยไม่ตั้งใจเวลาเล่นบนมือถือ */
+            user-select: none; 
+            -webkit-user-select: none;
+        }
+
+        /* สร้างเลเยอร์สีดำโปร่งแสงคลุมพื้นหลัง เพื่อให้กล่องข้อความเกมอ่านง่ายขึ้น */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.7); /* โทนสีกรมท่าเข้ม */
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            z-index: -1;
+            transition: all 0.8s ease;
+        }
+
+        /* เมื่ออยู่หน้าแรก (หน้าปก) ให้ลดความเบลอและความมืดลง เพื่อโชว์ภาพพื้นหลัง */
+        body.on-start::before {
+            background: rgba(15, 23, 42, 0.3);
+            backdrop-filter: blur(3px);
+            -webkit-backdrop-filter: blur(3px);
+        }
+
+        /* เอฟเฟกต์การโผล่ขึ้นมา (Fade In & Slide Up) */
+        .animate-fade-in-up {
+            animation: fadeInUp 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* เอฟเฟกต์การสั่นเล็กน้อยเวลาตอบผิด */
+        .animate-shake {
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        }
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
+        /* สไตล์ปุ่มแบบเกมเพลย์ (3D Button Effect) */
+        .game-button {
+            transition: all 0.1s ease;
+            box-shadow: 0 6px 0px rgba(0,0,0,0.2);
+            position: relative;
+            top: 0;
+        }
+        .game-button:active:not(:disabled) {
+            box-shadow: 0 0px 0px rgba(0,0,0,0.2);
+            top: 6px;
+        }
+        
+        /* สไตล์ปุ่มตัวเลือก (Choice Card) */
+        .choice-card {
+            transition: all 0.2s ease;
+            border: 3px solid transparent;
+            cursor: pointer;
+        }
+        .choice-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 15px rgba(0,0,0,0.05);
+        }
+        .choice-card:active {
+            transform: scale(0.98);
+        }
+
+        /* สไตล์พิเศษสำหรับตัวเลือกที่ถูกเลือก */
+        .choice-selected {
+            border-color: #3b82f6 !important; /* Tailwind blue-500 */
+            background-color: #eff6ff !important; /* Tailwind blue-50 */
+        }
+
+        /* คลาสซ่อนหน้าจอ */
+        .hidden-screen {
+            display: none !important;
+        }
+
+        /* เอฟเฟกต์ Confetti ฉลองตอนจบ */
+        .confetti-piece {
+            position: fixed;
+            width: 10px; height: 10px;
+            pointer-events: none;
+            z-index: 1000;
+        }
+        
+        /* ตกแต่ง Scrollbar ให้ดูสะอาดตา */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col text-slate-800 on-start">
+
+    <!-- แถบด้านบน (Header) & แถบความคืบหน้า (Progress) -->
+    <header class="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-slate-200 shadow-sm">
+        <div class="max-w-4xl mx-auto px-4 py-3">
+            <div class="flex justify-between items-center mb-2">
+                <h1 class="text-xl md:text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
+                    <span class="bg-blue-600 text-white rounded-lg p-1.5"><i class="fas fa-shield-halved"></i></span>
+                    หนี-ซ่อน-สู้
+                </h1>
+                
+                <!-- แสดงสถานะข้อ - ซ่อนในหน้าแรกและหน้าสรุป -->
+                <div id="status-badge" class="hidden-screen bg-slate-100 text-slate-600 font-bold px-3 py-1 rounded-full text-sm border border-slate-200 shadow-sm">
+                    ด่านที่ <span id="current-q-num" class="text-blue-600">1</span>/<span id="total-q-num">15</span>
+                </div>
+            </div>
+            
+            <!-- แถบ Progress Bar -->
+            <div id="progress-container" class="hidden-screen w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                <div id="progress-bar" class="bg-gradient-to-r from-blue-500 to-indigo-600 h-full transition-all duration-500 ease-out" style="width: 0%"></div>
+            </div>
+        </div>
+    </header>
+
+    <!-- พื้นที่แสดงเนื้อหาหลัก (Main Content) -->
+    <main class="flex-grow flex items-center justify-center p-4 sm:p-6 w-full">
+        <div class="w-full max-w-4xl relative">
+
+            <!-- หน้าแรก (ปกเกม) -->
+            <section id="screen-start" class="animate-fade-in-up w-full relative cursor-pointer group" onclick="startGame()">
+                <div class="relative rounded-[2.5rem] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.6)] border-4 border-slate-700/50 group-hover:border-yellow-400 transition-all duration-300 transform group-hover:-translate-y-2 bg-slate-900">
+                    <!-- รูปปกเกม -->
+                    <img src="ChatGPT Image Aug 8, 2026, 09_01_07 AM.png" alt="ปกเกม หนี-ซ่อน-สู้" class="w-full h-auto object-cover">
+                    
+                    <!-- Overlay แสงสว่างเมื่อเอาเมาส์ชี้ (Hover Effect) -->
+                    <div class="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors duration-300"></div>
+                    
+                    <!-- ข้อความแนะนำการกดเพื่อเริ่มเกม -->
+                    <div class="absolute bottom-6 md:bottom-10 left-1/2 transform -translate-x-1/2 w-full text-center pointer-events-none">
+                        <span class="inline-flex items-center gap-2 bg-slate-900/90 text-yellow-400 px-8 py-4 md:px-10 md:py-5 rounded-full font-black text-lg md:text-2xl animate-bounce shadow-[0_0_30px_rgba(250,204,21,0.5)] backdrop-blur-md border-2 border-yellow-400/50 uppercase tracking-wide">
+                            <i class="fas fa-play text-xl md:text-3xl"></i> แตะเพื่อเริ่มเกม
+                        </span>
+                    </div>
+                </div>
+            </section>
+
+            <section id="screen-question" class="hidden-screen flex-col items-center w-full">
+                
+                <!-- กล่องสถานการณ์ -->
+                <div class="bg-white p-6 md:p-8 rounded-[2rem] shadow-lg w-full mb-6 border-b-4 border-slate-200 relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-2 h-full bg-blue-500"></div>
+                    <h3 class="text-slate-500 font-bold text-sm uppercase tracking-widest mb-3 flex items-center gap-2">
+                        <i class="fas fa-eye text-blue-500"></i> สถานการณ์
+                    </h3>
+                    <p id="situation-text" class="text-lg md:text-2xl text-slate-800 font-semibold leading-relaxed md:leading-normal"></p>
+                </div>
+                
+                <h4 class="text-slate-500 mb-4 font-bold text-center w-full animate-pulse">คุณจะทำอย่างไร?</h4>
+                
+                <!-- คอนเทนเนอร์ตัวเลือก -->
+                <div id="choices-container" class="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
+                    <!-- ตัวเลือกจะถูกสร้างด้วย JavaScript -->
+                </div>
+
+                <!-- ปุ่มยืนยัน (ซ่อนไว้ก่อนจนกว่าจะเลือกตัวเลือก) -->
+                <div class="w-full flex justify-center mt-6">
+                    <button id="confirm-btn" onclick="submitAnswer()" class="hidden game-button bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 px-10 rounded-full text-lg w-full md:w-auto opacity-0 transition-opacity duration-300">
+                        ยืนยันคำตอบ <i class="fas fa-check ml-2"></i>
+                    </button>
+                </div>
+            </section>
+
+            <section id="screen-feedback" class="hidden-screen flex-col items-center w-full">
+                <div id="feedback-card" class="p-8 md:p-10 rounded-[2rem] border-4 w-full max-w-2xl shadow-2xl mb-8 relative bg-white">
+                    
+                    <!-- ไอคอนผลลัพธ์ (ถูก/ผิด) -->
+                    <div id="feedback-icon-container" class="absolute -top-12 left-1/2 transform -translate-x-1/2 w-24 h-24 rounded-full flex items-center justify-center border-8 border-white shadow-lg">
+                        <i id="feedback-icon" class="fas text-5xl"></i>
+                    </div>
+
+                    <div class="mt-8 text-center">
+                        <h2 id="feedback-title" class="text-3xl md:text-4xl font-black mb-4 tracking-tight"></h2>
+                        
+                        <!-- ป้ายบอกหลักการ (Run, Hide, Fight) -->
+                        <div class="mb-6">
+                            <span id="principle-badge" class="inline-flex items-center gap-2 px-5 py-2 rounded-xl text-white font-bold text-sm md:text-base uppercase tracking-wider shadow-sm">
+                                <i id="principle-icon" class="fas"></i> <span id="principle-text"></span>
+                            </span>
+                        </div>
+                        
+                        <!-- คำอธิบายเหตุผล -->
+                        <div class="bg-slate-50 p-5 rounded-2xl border border-slate-100 text-left">
+                            <p class="text-slate-500 text-sm font-bold mb-1 uppercase">เหตุผล</p>
+                            <p id="feedback-explanation" class="text-slate-800 text-lg md:text-xl font-medium leading-relaxed"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <button onclick="nextQuestion()" id="next-btn" class="game-button bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-white font-black py-4 px-10 rounded-full text-xl w-full md:w-auto flex justify-center items-center gap-3">
+                    ไปต่อ <i class="fas fa-arrow-right"></i>
+                </button>
+            </section>
+
+            <section id="screen-result" class="hidden-screen flex-col items-center w-full">
+                <div class="bg-white p-8 md:p-12 rounded-[2.5rem] shadow-2xl w-full text-center relative overflow-hidden border-4 border-slate-50">
+                    
+                    <h2 class="text-3xl md:text-4xl font-black text-slate-800 mb-2">จบภารกิจ!</h2>
+                    <p class="text-slate-500 font-bold uppercase tracking-wider mb-8">ความแม่นยำของคุณ</p>
+                    
+                    <!-- แสดงคะแนน -->
+                    <div class="relative w-48 h-48 mx-auto mb-10 flex items-center justify-center">
+                        <svg class="absolute top-0 left-0 w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                            <circle class="text-slate-100 stroke-current" stroke-width="8" cx="50" cy="50" r="40" fill="transparent"></circle>
+                            <circle id="score-circle" class="stroke-current" stroke-width="8" stroke-linecap="round" cx="50" cy="50" r="40" fill="transparent" stroke-dasharray="251.2" stroke-dashoffset="251.2" style="transition: stroke-dashoffset 1.5s ease-out;"></circle>
+                        </svg>
+                        <div class="text-center">
+                            <span id="score-display-num" class="text-5xl font-black text-slate-800 block leading-none">0</span>
+                            <span class="text-slate-400 font-bold">/15</span>
+                        </div>
+                    </div>
+
+                    <p id="result-message" class="text-2xl font-bold mb-10"></p>
+
+                    <!-- การ์ดสรุปทบทวนความรู้ (ปรับดีไซน์ใหม่) -->
+                    <div class="text-left bg-slate-50 p-6 md:p-8 rounded-[2rem] space-y-6">
+                        <h3 class="font-black text-2xl text-slate-800 border-b-2 border-slate-200 pb-4 flex items-center gap-3">
+                            <i class="fas fa-clipboard-check text-blue-500"></i> ทบทวนหลัก 3 ประการ
+                        </h3>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <!-- RUN -->
+                            <div class="bg-emerald-50 border border-emerald-100 p-5 rounded-2xl relative overflow-hidden">
+                                <div class="absolute -right-4 -bottom-4 opacity-10"><i class="fas fa-person-running text-8xl text-emerald-500"></i></div>
+                                <h4 class="text-emerald-700 font-black text-xl mb-3 flex items-center gap-2">
+                                    <span class="bg-emerald-500 text-white w-8 h-8 rounded-lg flex items-center justify-center"><i class="fas fa-person-running"></i></span> 1. หนี (RUN)
+                                </h4>
+                                <ul class="text-sm text-emerald-900 space-y-2 font-medium relative z-10 list-none pl-0">
+                                    <li><i class="fas fa-check text-emerald-500 mr-1"></i> ประเมิน: ออกให้ไว</li>
+                                    <li><i class="fas fa-check text-emerald-500 mr-1"></i> ทิ้งของ: เอาแค่ชีวิต</li>
+                                    <li><i class="fas fa-check text-emerald-500 mr-1"></i> พาคนอื่น: ชวนไปแต่อย่ารอ</li>
+                                    <li><i class="fas fa-check text-emerald-500 mr-1"></i> เตือน: ห้ามคนเข้าใกล้</li>
+                                    <li><i class="fas fa-check text-emerald-500 mr-1"></i> แจ้ง: ปลอดภัยแล้วโทร 191/199</li>
+                                </ul>
+                            </div>
+
+                            <!-- HIDE -->
+                            <div class="bg-sky-50 border border-sky-100 p-5 rounded-2xl relative overflow-hidden">
+                                <div class="absolute -right-4 -bottom-4 opacity-10"><i class="fas fa-lock text-8xl text-sky-500"></i></div>
+                                <h4 class="text-sky-700 font-black text-xl mb-3 flex items-center gap-2">
+                                    <span class="bg-sky-500 text-white w-8 h-8 rounded-lg flex items-center justify-center"><i class="fas fa-lock"></i></span> 2. ซ่อน (HIDE)
+                                </h4>
+                                <ul class="text-sm text-sky-900 space-y-2 font-medium relative z-10 list-none pl-0">
+                                    <li><i class="fas fa-check text-sky-500 mr-1"></i> หาที่หลบ: ห้องปิดมิดชิด</li>
+                                    <li><i class="fas fa-check text-sky-500 mr-1"></i> ล็อกและขวาง: ดันตู้/โต๊ะปิดประตู</li>
+                                    <li><i class="fas fa-check text-sky-500 mr-1"></i> ปิดเสียง: ไฟ แอร์ มือถือ(สั่นก็ห้าม)</li>
+                                    <li><i class="fas fa-check text-sky-500 mr-1"></i> หมอบต่ำ: หลบหลังของแข็ง เงียบที่สุด</li>
+                                </ul>
+                            </div>
+
+                            <!-- FIGHT -->
+                            <div class="bg-rose-50 border border-rose-100 p-5 rounded-2xl relative overflow-hidden">
+                                <div class="absolute -right-4 -bottom-4 opacity-10"><i class="fas fa-hand-fist text-8xl text-rose-500"></i></div>
+                                <h4 class="text-rose-700 font-black text-xl mb-3 flex items-center gap-2">
+                                    <span class="bg-rose-500 text-white w-8 h-8 rounded-lg flex items-center justify-center"><i class="fas fa-hand-fist"></i></span> 3. สู้ (FIGHT)
+                                </h4>
+                                <ul class="text-sm text-rose-900 space-y-2 font-medium relative z-10 list-none pl-0">
+                                    <li><i class="fas fa-check text-rose-500 mr-1"></i> ตัดสินใจ: ทางเลือกสุดท้ายจวนตัว</li>
+                                    <li><i class="fas fa-check text-rose-500 mr-1"></i> ใช้อุปกรณ์: ถังดับเพลิง เก้าอี้</li>
+                                    <li><i class="fas fa-check text-rose-500 mr-1"></i> ร่วมมือกัน: รุมพร้อมกันหลายคน</li>
+                                    <li><i class="fas fa-check text-rose-500 mr-1"></i> เล็งจุดอ่อน: หน้า ตา คอ แย่งอาวุธ</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button onclick="resetGame()" class="game-button mt-10 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 text-white font-black py-4 px-10 rounded-full text-xl w-full sm:w-auto flex justify-center items-center gap-3 mx-auto">
+                        <i class="fas fa-rotate-right"></i> เล่นอีกครั้งเพื่อทำคะแนนเต็ม
+                    </button>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <script>
+        // ข้อมูลชุดคำถาม 15 ข้อ อิงตามรูปภาพที่กำหนด
+        const quizData = [
+            // --- RUN (หนี) ---
+            {
+                situation: "คุณเรียนอยู่ชั้น 1 ได้ยินเสียงคล้ายปืนดังมาจากโรงอาหาร ประตูทางออกโรงเรียนเปิดอยู่และดูปลอดภัย",
+                options: [
+                    { text: "แอบเข้าไปในห้องน้ำใกล้ๆ", type: "hide", icon: "fa-restroom", isCorrect: false, explanation: "ผิด! คุณอยู่ใกล้ทางออกและรู้ว่าอันตรายอยู่จุดอื่น การ 'หนี' คือทางเลือกแรกเสมอ" },
+                    { text: "รีบวิ่งออกไปทางประตูทางออกทันที", type: "run", icon: "fa-person-running", isCorrect: true, explanation: "ถูกต้อง! 'ประเมินสถานการณ์' หากเห็นช่องทางปลอดภัย ให้รีบออกทันที" },
+                    { text: "เดินไปดูให้แน่ใจว่าเป็นเสียงอะไร", type: "fight", icon: "fa-eye", isCorrect: false, explanation: "ผิด! ไม่ควรเอาตัวเองเข้าไปใกล้จุดเกิดเหตุหรือจุดที่มีเสียงดังผิดปกติเด็ดขาด" }
+                ],
+                correctPrinciple: "RUN", correctPrincipleTh: "1. ประเมินสถานการณ์ (หนี)"
+            },
+            {
+                situation: "ขณะกำลังวิ่งหนี คุณนึกขึ้นได้ว่าลืมกระเป๋าที่มีมือถือราคาแพงและบัตรประชาชนไว้ในห้อง",
+                options: [
+                    { text: "รีบวิ่งกลับไปเอาแป๊บเดียว", type: "fight", icon: "fa-rotate-left", isCorrect: false, explanation: "ผิด! ชีวิตสำคัญกว่าทรัพย์สิน การย้อนกลับไปอาจทำให้เจอผู้ก่อเหตุ" },
+                    { text: "ทิ้งของไว้ วิ่งหนีเอาชีวิตรอดก่อน", type: "run", icon: "fa-person-through-window", isCorrect: true, explanation: "ถูกต้อง! 'ทิ้งของ' ไม่ต้องเสียเวลาเก็บของส่วนตัว นำไปเฉพาะสิ่งที่ติดตัวอยู่หรือจำเป็นที่สุดจริงๆ" },
+                    { text: "ฝากเพื่อนที่วิ่งช้ากว่ากลับไปหยิบให้", type: "hide", icon: "fa-users", isCorrect: false, explanation: "ผิด! ไม่ควรให้ผู้อื่นเสี่ยงอันตรายไปด้วย" }
+                ],
+                correctPrinciple: "RUN", correctPrincipleTh: "2. ทิ้งของ (หนี)"
+            },
+            {
+                situation: "คุณชวนเพื่อนกลุ่มหนึ่งหนี แต่เพื่อนบอกว่า 'คงเป็นเสียงประทัดมั้ง ขี้เกียจวิ่ง'",
+                options: [
+                    { text: "ยืนอธิบายจนกว่าเพื่อนจะยอมเชื่อ", type: "fight", icon: "fa-comments", isCorrect: false, explanation: "ผิด! การเสียเวลายืนเถียงในพื้นที่อันตรายทำให้คุณเสี่ยงไปด้วย" },
+                    { text: "เตือนแล้วเขาไม่ไป ให้รีบหนีเอาตัวรอดคนเดียวทันที", type: "run", icon: "fa-person-running", isCorrect: true, explanation: "ถูกต้อง! 'พาคนอื่นหนี' ชวนหนีด้วยกัน แต่หากเขารั้งรอหรือลังเล อย่ารอ ให้รีบหนีทันที" },
+                    { text: "อยู่เป็นเพื่อนเขา จะได้ไม่ทิ้งกัน", type: "hide", icon: "fa-user-group", isCorrect: false, explanation: "ผิด! การอยู่ต่ออาจทำให้เกิดอันตรายกับทั้งคุณและเพื่อน" }
+                ],
+                correctPrinciple: "RUN", correctPrincipleTh: "3. พาคนอื่นหนี (หนี)"
+            },
+            {
+                situation: "คุณหนีรอดออกมานอกโรงเรียนได้แล้ว เจอเด็กนักเรียนคนอื่นกำลังจะเดินเข้าไปทางประตูนั้นพอดี",
+                options: [
+                    { text: "ตะโกนบอกว่ามีอันตราย ห้ามเข้าไปเด็ดขาด", type: "run", icon: "fa-hand", isCorrect: true, explanation: "ถูกต้อง! 'เตือนผู้อื่น' พยายามห้ามไม่ให้ผู้อื่นเข้าไปในพื้นที่อันตราย หากทำได้โดยปลอดภัย" },
+                    { text: "เดินผ่านไปเงียบๆ เพราะไม่ใช่เรื่องของเรา", type: "hide", icon: "fa-mask", isCorrect: false, explanation: "ผิด! การช่วยเหลือเตือนภัยผู้อื่นเป็นสิ่งสำคัญเพื่อลดความสูญเสีย" },
+                    { text: "ลากเด็กคนนั้นกลับเข้าไปซ่อนตัวด้วยกัน", type: "fight", icon: "fa-hands-holding-child", isCorrect: false, explanation: "ผิด! เมื่อออกมาพื้นที่ปลอดภัยแล้ว ไม่ควรกลับเข้าไปอีก" }
+                ],
+                correctPrinciple: "RUN", correctPrincipleTh: "4. เตือนผู้อื่น (หนี)"
+            },
+            {
+                situation: "คุณและเพื่อนๆ หนีออกมาอยู่ในจุดที่ปลอดภัยแล้ว (เช่น ร้านค้าฝั่งตรงข้ามโรงเรียน) สิ่งแรกที่ควรทำคือ?",
+                options: [
+                    { text: "ถ่ายรูปเซลฟี่อัปเดตสเตตัสว่ารอดตาย", type: "hide", icon: "fa-mobile-screen", isCorrect: false, explanation: "ผิด! โซเชียลมีเดียไม่ใช่สิ่งสำคัญที่สุดในตอนนี้" },
+                    { text: "โทร 191 หรือ 199 เพื่อแจ้งเหตุร้ายทันที", type: "run", icon: "fa-phone-volume", isCorrect: true, explanation: "ถูกต้อง! 'แจ้งเตือน' เมื่อถึงที่ปลอดภัย ให้รีบโทรแจ้งตำรวจ (191) หรือกู้ชีพ (199) ทันที" },
+                    { text: "นั่งพักดื่มน้ำให้หายเหนื่อยก่อน", type: "fight", icon: "fa-mug-hot", isCorrect: false, explanation: "ผิด! เวลาเป็นสิ่งมีค่า การแจ้งเจ้าหน้าที่ช้าอาจทำให้คนข้างในเกิดอันตรายเพิ่มขึ้น" }
+                ],
+                correctPrinciple: "RUN", correctPrincipleTh: "5. แจ้งเตือน (หนี)"
+            },
+
+            // --- HIDE (ซ่อน) ---
+            {
+                situation: "ผู้ก่อเหตุอยู่ใกล้มาก คุณหนีลงบันไดไม่ได้ คุณเห็นห้องสมุด (ประตูกระจกใส) และห้องพักครู (ประตูไม้ทึบ)",
+                options: [
+                    { text: "เข้าห้องสมุด (ประตูกระจก) เพราะกว้างกว่า", type: "run", icon: "fa-border-all", isCorrect: false, explanation: "ผิด! ประตูกระจกใสทำให้ผู้ก่อเหตุมองเห็นคุณได้ง่าย และพังเข้ามาง่าย" },
+                    { text: "เข้าห้องพักครู (ประตูทึบ) ปิดมิดชิด พ้นสายตา", type: "hide", icon: "fa-door-closed", isCorrect: true, explanation: "ถูกต้อง! 'หาที่หลบภัย' ต้องซ่อนในห้องที่ปิดมิดชิด พ้นจากสายตา (หลีกเลี่ยงประตูกระจก)" },
+                    { text: "ซ่อนใต้บันไดโล่งๆ แถวนั้น", type: "fight", icon: "fa-stairs", isCorrect: false, explanation: "ผิด! พื้นที่เปิดโล่งไม่สามารถป้องกันอันตรายหรือซ่อนตัวได้มิดชิด" }
+                ],
+                correctPrinciple: "HIDE", correctPrincipleTh: "1. หาที่หลบภัย (ซ่อน)"
+            },
+            {
+                situation: "เมื่อคุณเข้ามาซ่อนในห้องพักครูได้แล้ว สิ่งแรกที่ต้องทำกับประตูคือ?",
+                options: [
+                    { text: "เปิดแง้มไว้ เพื่อแอบดูความเคลื่อนไหวข้างนอก", type: "run", icon: "fa-door-open", isCorrect: false, explanation: "ผิด! การเปิดแง้มไว้เสี่ยงต่อการถูกมองเห็น และคนร้ายดันเข้ามาได้ง่าย" },
+                    { text: "ยืนเอาหลังพิงประตูไว้", type: "fight", icon: "fa-person-praying", isCorrect: false, explanation: "ผิด! หากคนร้ายยิงทะลุประตูเข้ามา คุณจะได้รับอันตรายโดยตรง" },
+                    { text: "ล็อกประตู และลากตู้หรือโต๊ะหนักๆ มาดันขวางไว้", type: "hide", icon: "fa-lock", isCorrect: true, explanation: "ถูกต้อง! 'ล็อกและสิ่งกีดขวาง' ล็อกประตูทันที และนำสิ่งของหนักๆ มาดันขวางเพื่อถ่วงเวลา" }
+                ],
+                correctPrinciple: "HIDE", correctPrincipleTh: "2. ล็อกและสิ่งกีดขวาง (ซ่อน)"
+            },
+            {
+                situation: "ตอนนี้ในห้องมีเพื่อน 3 คน ทุกคนมีโทรศัพท์มือถือ และในห้องเปิดแอร์และไฟสว่าง",
+                options: [
+                    { text: "ปิดไฟ ปิดแอร์ ปิดเสียงมือถือและระบบสั่นทั้งหมด", type: "hide", icon: "fa-volume-xmark", isCorrect: true, explanation: "ถูกต้อง! 'ปิดเสียงทุกอย่าง' ต้องปิดไฟ ปิดแอร์ ปิดเสียงและระบบสั่นของมือถือ เพื่อให้ห้องดูเหมือนไม่มีคนอยู่" },
+                    { text: "ปิดเสียงมือถือ แต่ตั้งสั่นไว้เผื่อพ่อแม่โทรมา", type: "run", icon: "fa-mobile-retro", isCorrect: false, explanation: "ผิด! เสียงระบบสั่นในความเงียบสามารถดังพอที่จะทำให้คนร้ายรู้ตำแหน่งได้" },
+                    { text: "ปิดไฟ แต่เปิดแอร์ไว้เพราะอากาศร้อน", type: "fight", icon: "fa-fan", isCorrect: false, explanation: "ผิด! เสียงคอมเพรสเซอร์หรือพัดลมแอร์อาจกลบเสียงฝีเท้าคนร้าย และทำให้รู้ว่ามีคนอยู่" }
+                ],
+                correctPrinciple: "HIDE", correctPrincipleTh: "3. ปิดเสียงทุกอย่าง (ซ่อน)"
+            },
+            {
+                situation: "คุณจัดการล็อกประตูและปิดไฟหมดแล้ว คุณควรไปซ่อนตรงไหนของห้อง?",
+                options: [
+                    { text: "ยืนอยู่หลังประตูที่ล็อกไว้ เผื่อใครพังเข้ามา", type: "fight", icon: "fa-door-closed", isCorrect: false, explanation: "ผิด! ห้ามอยู่ตรงกับแนวประตูเด็ดขาด เผื่อมีการยิงทะลุเข้ามา" },
+                    { text: "นั่งบนโต๊ะครูริมหน้าต่าง จะได้เห็นข้างนอก", type: "run", icon: "fa-chair", isCorrect: false, explanation: "ผิด! การอยู่ริมหน้าต่างและที่สูงทำให้เป็นเป้าสายตา" },
+                    { text: "หมอบต่ำลงกับพื้น หลบหลังตู้เหล็กหนาๆ ให้เงียบที่สุด", type: "hide", icon: "fa-bed", isCorrect: true, explanation: "ถูกต้อง! 'หมอบต่ำ' หมอบลงกับพื้นหลังสิ่งกีดขวางที่แข็งแรง (เช่น โต๊ะหนา ตู้เหล็ก คอนกรีต) และอยู่ให้เงียบที่สุด" }
+                ],
+                correctPrinciple: "HIDE", correctPrincipleTh: "4. หมอบต่ำ (ซ่อน)"
+            },
+            {
+                situation: "ระหว่างที่ซ่อนตัวเงียบๆ มีเสียงเคาะประตูและมีคนบอกว่า 'นี่ตำรวจนะ เปิดประตูหน่อย' (มองลอดช่องประตูไม่เห็นชุด)",
+                options: [
+                    { text: "รีบเปิดประตูทันที เพราะตำรวจมาช่วยแล้ว", type: "run", icon: "fa-door-open", isCorrect: false, explanation: "ผิด! คนร้ายอาจหลอกให้คุณเปิดประตู" },
+                    { text: "ตะโกนถามไปว่า 'ตำรวจจริงหรือเปล่า'", type: "fight", icon: "fa-bullhorn", isCorrect: false, explanation: "ผิด! การส่งเสียงจะเปิดเผยตำแหน่งของคุณทันที" },
+                    { text: "อยู่ให้เงียบที่สุด ไม่เปิดเด็ดขาดจนกว่าจะมั่นใจจริงๆ", type: "hide", icon: "fa-lips", isCorrect: true, explanation: "ถูกต้อง! หากไม่สามารถยืนยันตัวตนได้ 100% ให้อยู่เงียบๆ ต่อไปปลอดภัยที่สุด" }
+                ],
+                correctPrinciple: "HIDE", correctPrincipleTh: "ข้อควรระวัง (ซ่อน)"
+            },
+
+            // --- FIGHT (สู้) ---
+            {
+                situation: "คนร้ายพังประตูห้องที่คุณซ่อนตัวเข้ามาได้สำเร็จ เขาเห็นคุณและกำลังเดินเข้ามาทำร้าย คุณไม่มีทางหนีอื่นแล้ว",
+                options: [
+                    { text: "ร้องไห้ขอร้องชีวิต และยอมทำตามที่เขาสั่ง", type: "hide", icon: "fa-face-sad-cry", isCorrect: false, explanation: "ผิด! ในสถานการณ์กราดยิงหรือคนคลุ้มคลั่ง การร้องขอชีวิตมักไม่ได้ผล" },
+                    { text: "วิ่งหนีไปมาในห้องที่ปิดตาย", type: "run", icon: "fa-person-running", isCorrect: false, explanation: "ผิด! การวิ่งในพื้นที่จำกัดทำให้คุณเหนื่อยฟรีและตกเป็นเป้าได้ง่าย" },
+                    { text: "ตัดสินใจเด็ดขาด! สู้เพื่อป้องกันตัวเป็นทางเลือกสุดท้าย", type: "fight", icon: "fa-hand-fist", isCorrect: true, explanation: "ถูกต้อง! 'ตัดสินใจเด็ดขาด' เมื่อไม่มีทางหนีและจวนตัว การสู้สุดใจคือโอกาสรอดเดียวของคุณ" }
+                ],
+                correctPrinciple: "FIGHT", correctPrincipleTh: "1. ตัดสินใจเด็ดขาด (สู้)"
+            },
+            {
+                situation: "คุณต้องสู้! คุณกวาดสายตาไปรอบห้องพักครู สิ่งใดควรหยิบมาเป็นอาวุธ?",
+                options: [
+                    { text: "กำหมัดแน่น ใช้มือเปล่าชก", type: "run", icon: "fa-hand-fist", isCorrect: false, explanation: "ผิด! การใช้มือเปล่าสู้กับคนมีอาวุธคุณจะเสียเปรียบมาก" },
+                    { text: "ถังดับเพลิง กรรไกร เก้าอี้ ขาตั้งกล้อง", type: "fight", icon: "fa-fire-extinguisher", isCorrect: true, explanation: "ถูกต้อง! 'ใช้อุปกรณ์รอบตัว' คว้าสิ่งของรอบตัวมาดัดแปลงเป็นอาวุธ ของแข็ง ของหนัก สเปรย์ สามารถใช้ได้หมด" },
+                    { text: "กระดาษ A4 หรือ แฟ้มเอกสารพลาสติกอ่อน", type: "hide", icon: "fa-file", isCorrect: false, explanation: "ผิด! สิ่งของเหล่านี้ไม่มีน้ำหนักและความแข็งพอที่จะหยุดยั้งคนร้ายได้" }
+                ],
+                correctPrinciple: "FIGHT", correctPrincipleTh: "2. ใช้อุปกรณ์รอบตัว (สู้)"
+            },
+            {
+                situation: "ในห้องมีคุณและเพื่อนรวม 4 คน เมื่อต้องสู้กับคนร้าย 1 คน กลยุทธ์ใดดีที่สุด?",
+                options: [
+                    { text: "ให้คนที่ตัวสูงที่สุดเข้าไปสู้คนเดียว ที่เหลือหลบ", type: "hide", icon: "fa-person", isCorrect: false, explanation: "ผิด! การเข้าไปสู้ทีละคนจะถูกจัดการได้ง่าย" },
+                    { text: "ต่างคนต่างขว้างปาของใส่แบบมั่วๆ", type: "run", icon: "fa-hurricane", isCorrect: false, explanation: "ผิด! การกระทำแบบไม่มีทิศทางอาจไม่ได้ผลและทำให้บาดเจ็บกันเอง" },
+                    { text: "ส่งซิกกันอย่างรวดเร็ว พุ่งเข้าโจมตีพร้อมๆ กันทุกคน", type: "fight", icon: "fa-people-group", isCorrect: true, explanation: "ถูกต้อง! 'ร่วมมือกัน' หากมีหลายคน การรุมโจมตีพร้อมกันจากหลายทิศทางจะทำให้คนร้ายรับมือไม่ทัน" }
+                ],
+                correctPrinciple: "FIGHT", correctPrincipleTh: "3. ร่วมมือกัน (สู้)"
+            },
+            {
+                situation: "จังหวะที่พุ่งเข้าโจมตี คุณถือถังดับเพลิงอยู่ คุณควรเล็งการโจมตีไปที่ส่วนใดของคนร้าย?",
+                options: [
+                    { text: "เล็งตีไปที่ขาหรือเท้า เพื่อให้เขาล้ม", type: "hide", icon: "fa-shoe-prints", isCorrect: false, explanation: "ผิด! ขาไม่ใช่จุดอ่อนสำคัญ เขาอาจยังยิงปืนหรือใช้อาวุธสวนกลับได้" },
+                    { text: "เล็งตีไปที่ใบหน้า ตา คอ หรือพ่นสเปรย์ใส่หน้า และแย่งอาวุธ", type: "fight", icon: "fa-crosshairs", isCorrect: true, explanation: "ถูกต้อง! 'เล็งจุดอ่อน' ต้องมุ่งโจมตีจุดสำคัญเพื่อให้คนร้ายชะงัก ตาบอดชั่วขณะ หรือหมดสติโดยเร็วที่สุด" },
+                    { text: "ปาใส่กลางลำตัว", type: "run", icon: "fa-shirt", isCorrect: false, explanation: "ผิด! ลำตัวอาจใส่เสื้อเกราะ หรือทนแรงกระแทกได้ดีกว่าจุดอ่อนอื่นๆ" }
+                ],
+                correctPrinciple: "FIGHT", correctPrincipleTh: "4. เล็งจุดอ่อน (สู้)"
+            },
+            
+            // --- BONUS ---
+            {
+                situation: "คุณวิ่งหนีออกมานอกอาคาร เจอตำรวจหน่วยสวาทยกปืนเล็งมาทางคุณและตะโกนสั่งให้หยุด คุณควรทำอย่างไร?",
+                options: [
+                    { text: "วิ่งเข้าไปหาตำรวจเพื่อขอความช่วยเหลือทันที", type: "fight", icon: "fa-person-running", isCorrect: false, explanation: "ผิด! ตำรวจอาจตกใจและคิดว่าคุณเป็นคนร้ายที่กำลังพุ่งเข้าชาร์จ" },
+                    { text: "หยุดนิ่ง ยกมือทั้งสองข้างขึ้นสูงๆ กางนิ้วออก ไม่ถืออะไรไว้ในมือ", type: "run", icon: "fa-hands", isCorrect: true, explanation: "ถูกต้อง! ต้องแสดงให้เจ้าหน้าที่เห็นอย่างชัดเจนว่าคุณไม่มีอาวุธ และไม่ใช่ภัยคุกคาม" },
+                    { text: "ล้วงมือเข้าไปในกระเป๋าเพื่อหยิบบัตรนักเรียนให้ดู", type: "hide", icon: "fa-id-card", isCorrect: false, explanation: "ผิด! การล้วงกระเป๋าอย่างรวดเร็ว เจ้าหน้าที่จะเข้าใจผิดว่าคุณกำลังชักอาวุธ" }
+                ],
+                correctPrinciple: "RUN", correctPrincipleTh: "เมื่อเจอเจ้าหน้าที่"
+            }
+        ];
+
+        // ตัวแปรสถานะเกม
+        let currentQuestionIndex = 0;
+        let score = 0;
+        let selectedOptionIndex = null; // เก็บคำตอบที่ผู้เล่นเลือกก่อนกดยืนยัน
+
+        // DOM Elements อ้างอิงจาก ID
+        const els = {
+            screens: {
+                start: document.getElementById('screen-start'),
+                question: document.getElementById('screen-question'),
+                feedback: document.getElementById('screen-feedback'),
+                result: document.getElementById('screen-result')
+            },
+            progress: {
+                container: document.getElementById('progress-container'),
+                bar: document.getElementById('progress-bar'),
+                badge: document.getElementById('status-badge'),
+                current: document.getElementById('current-q-num'),
+                total: document.getElementById('total-q-num')
+            },
+            question: {
+                text: document.getElementById('situation-text'),
+                choicesContainer: document.getElementById('choices-container'),
+                confirmBtn: document.getElementById('confirm-btn')
+            },
+            feedback: {
+                iconContainer: document.getElementById('feedback-icon-container'),
+                icon: document.getElementById('feedback-icon'),
+                title: document.getElementById('feedback-title'),
+                principleBadge: document.getElementById('principle-badge'),
+                principleIcon: document.getElementById('principle-icon'),
+                principleText: document.getElementById('principle-text'),
+                explanation: document.getElementById('feedback-explanation'),
+                nextBtn: document.getElementById('next-btn')
+            },
+            result: {
+                scoreNum: document.getElementById('score-display-num'),
+                scoreCircle: document.getElementById('score-circle'),
+                message: document.getElementById('result-message')
+            }
+        };
+
+        // ฟังก์ชันสลับหน้าจอ (ซ่อนหน้าเก่า แสดงหน้าใหม่ พร้อม Animation)
+        function switchScreen(screenName) {
+            Object.values(els.screens).forEach(screen => {
+                screen.classList.add('hidden-screen');
+                screen.classList.remove('flex');
+            });
+            
+            els.screens[screenName].classList.remove('hidden-screen');
+            els.screens[screenName].classList.add('flex');
+            
+            // รีเซ็ต Animation ให้เล่นใหม่ทุกครั้งที่เปิดหน้า
+            els.screens[screenName].classList.remove('animate-fade-in-up');
+            void els.screens[screenName].offsetWidth; // Trigger reflow
+            els.screens[screenName].classList.add('animate-fade-in-up');
+        }
+
+        // อัปเดตแถบความคืบหน้า (Progress Bar) ด้านบน
+        function updateProgress() {
+            const progressPercent = ((currentQuestionIndex) / quizData.length) * 100;
+            els.progress.bar.style.width = `${progressPercent}%`;
+            els.progress.current.innerText = currentQuestionIndex + 1;
+        }
+
+        // เริ่มเกมใหม่
+        function startGame() {
+            // ลบสถานะหน้าปกออก เพื่อให้พื้นหลังมืดลงและเบลอ โฟกัสที่คำถาม
+            document.body.classList.remove('on-start');
+            
+            currentQuestionIndex = 0;
+            score = 0;
+            
+            // แสดงแถบสถานะด้านบน
+            els.progress.container.classList.remove('hidden-screen');
+            els.progress.badge.classList.remove('hidden-screen');
+            els.progress.total.innerText = quizData.length;
+            
+            loadQuestion();
+            switchScreen('question');
+        }
+
+        // โหลดข้อมูลคำถามปัจจุบันมาแสดงบนหน้าจอ
+        function loadQuestion() {
+            const q = quizData[currentQuestionIndex];
+            selectedOptionIndex = null; // รีเซ็ตการเลือก
+            
+            els.question.text.innerText = q.situation;
+            els.question.choicesContainer.innerHTML = ''; 
+            
+            // ซ่อนปุ่มยืนยัน
+            els.question.confirmBtn.classList.add('hidden');
+            els.question.confirmBtn.classList.remove('opacity-100');
+            els.question.confirmBtn.classList.add('opacity-0');
+
+            // สร้างปุ่มตัวเลือก
+            q.options.forEach((opt, index) => {
+                const btn = document.createElement('div');
+                // กำหนดคลาสพื้นฐานของตัวเลือก
+                btn.className = `choice-card bg-white rounded-2xl p-5 md:p-6 flex flex-col items-center text-center justify-start gap-4 border-2 border-slate-100 shadow-sm`;
+                btn.onclick = () => selectChoice(index, btn);
+                
+                btn.innerHTML = `
+                    <div class="w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center bg-slate-50 text-slate-400 text-3xl md:text-4xl transition-colors duration-200" id="icon-bg-${index}">
+                        <i class="fas ${opt.icon}"></i>
+                    </div>
+                    <span class="font-bold text-slate-700 text-lg md:text-xl leading-tight pointer-events-none">${opt.text}</span>
+                `;
+                els.question.choicesContainer.appendChild(btn);
+            });
+            
+            updateProgress();
+        }
+
+        // เมื่อผู้เล่นคลิกเลือกตัวเลือก (ยังไม่ยืนยัน)
+        function selectChoice(index, btnElement) {
+            selectedOptionIndex = index;
+            
+            // ล้างสถานะที่เลือกไว้ของทุกปุ่มก่อน
+            const allChoices = els.question.choicesContainer.querySelectorAll('.choice-card');
+            allChoices.forEach((el, i) => {
+                el.classList.remove('choice-selected');
+                const iconBg = document.getElementById(`icon-bg-${i}`);
+                iconBg.classList.remove('bg-blue-500', 'text-white');
+                iconBg.classList.add('bg-slate-50', 'text-slate-400');
+            });
+            
+            // ใส่สไตล์ให้ปุ่มที่ถูกเลือก
+            btnElement.classList.add('choice-selected');
+            const selectedIconBg = document.getElementById(`icon-bg-${index}`);
+            selectedIconBg.classList.remove('bg-slate-50', 'text-slate-400');
+            selectedIconBg.classList.add('bg-blue-500', 'text-white');
+
+            // แสดงปุ่ม "ยืนยัน"
+            els.question.confirmBtn.classList.remove('hidden');
+            setTimeout(() => els.question.confirmBtn.classList.remove('opacity-0'), 10);
+            els.question.confirmBtn.classList.add('opacity-100');
+        }
+
+        // เมื่อกดปุ่ม "ยืนยันคำตอบ"
+        function submitAnswer() {
+            if (selectedOptionIndex === null) return;
+            
+            const q = quizData[currentQuestionIndex];
+            const selectedOpt = q.options[selectedOptionIndex];
+            
+            showFeedback(selectedOpt, q);
+        }
+
+        // แสดงหน้าเฉลย (ถูก/ผิด) และเหตุผล
+        function showFeedback(option, qData) {
+            switchScreen('feedback');
+            
+            // ตั้งค่าสีและไอคอนตามหลักการ (RUN=เขียว, HIDE=ฟ้า, FIGHT=แดง)
+            let colorTheme, iconClass, bgTheme, borderTheme;
+            if (qData.correctPrinciple === 'RUN') {
+                colorTheme = 'text-emerald-600'; bgTheme = 'bg-emerald-500'; borderTheme = 'border-emerald-500'; iconClass = 'fa-person-running';
+            } else if (qData.correctPrinciple === 'HIDE') {
+                colorTheme = 'text-sky-600'; bgTheme = 'bg-sky-500'; borderTheme = 'border-sky-500'; iconClass = 'fa-lock';
+            } else {
+                colorTheme = 'text-rose-600'; bgTheme = 'bg-rose-500'; borderTheme = 'border-rose-500'; iconClass = 'fa-hand-fist';
+            }
+
+            // อัปเดตป้ายบอกหลักการ
+            els.feedback.principleBadge.className = `inline-flex items-center gap-2 px-5 py-2 rounded-xl text-white font-bold text-sm md:text-base uppercase tracking-wider shadow-sm ${bgTheme}`;
+            els.feedback.principleIcon.className = `fas ${iconClass}`;
+            els.feedback.principleText.innerText = qData.correctPrincipleTh;
+
+            const fCard = document.getElementById('feedback-card');
+
+            if (option.isCorrect) {
+                // กรณีตอบถูก
+                score++;
+                els.feedback.iconContainer.className = "absolute -top-12 left-1/2 transform -translate-x-1/2 w-24 h-24 rounded-full flex items-center justify-center border-8 border-white shadow-lg bg-emerald-500 text-white";
+                els.feedback.icon.className = "fas fa-check";
+                els.feedback.title.innerText = "ยอดเยี่ยม! ถูกต้อง";
+                els.feedback.title.className = "text-3xl md:text-4xl font-black mb-4 tracking-tight text-emerald-600";
+                fCard.className = `p-8 md:p-10 rounded-[2rem] border-4 w-full max-w-2xl shadow-2xl mb-8 relative bg-white border-emerald-100`;
+                createConfetti(); // เรียกใช้เอฟเฟกต์ฉลอง
+            } else {
+                // กรณีตอบผิด
+                els.feedback.iconContainer.className = "absolute -top-12 left-1/2 transform -translate-x-1/2 w-24 h-24 rounded-full flex items-center justify-center border-8 border-white shadow-lg bg-red-500 text-white animate-shake";
+                els.feedback.icon.className = "fas fa-xmark";
+                els.feedback.title.innerText = "พลาดไปนิดนะ!";
+                els.feedback.title.className = "text-3xl md:text-4xl font-black mb-4 tracking-tight text-red-600 animate-shake";
+                fCard.className = `p-8 md:p-10 rounded-[2rem] border-4 w-full max-w-2xl shadow-2xl mb-8 relative bg-white border-red-100`;
+            }
+            
+            // แสดงคำอธิบาย
+            els.feedback.explanation.innerHTML = option.explanation;
+            
+            // อัปเดตข้อความปุ่ม "ไปต่อ" หากเป็นข้อสุดท้าย
+            if (currentQuestionIndex === quizData.length - 1) {
+                els.feedback.nextBtn.innerHTML = 'ดูผลประเมิน <i class="fas fa-flag-checkered ml-2"></i>';
+                els.feedback.nextBtn.classList.replace('bg-slate-800', 'bg-blue-600');
+                els.feedback.nextBtn.classList.replace('hover:bg-slate-700', 'hover:bg-blue-500');
+            } else {
+                els.feedback.nextBtn.innerHTML = 'สถานการณ์ต่อไป <i class="fas fa-arrow-right ml-2"></i>';
+                els.feedback.nextBtn.classList.replace('bg-blue-600', 'bg-slate-800'); // reset
+                els.feedback.nextBtn.classList.replace('hover:bg-blue-500', 'hover:bg-slate-700');
+            }
+        }
+
+        // ไปคำถามถัดไป หรือ ไปหน้าสรุปผล
+        function nextQuestion() {
+            currentQuestionIndex++;
+            if (currentQuestionIndex < quizData.length) {
+                loadQuestion();
+                switchScreen('question');
+            } else {
+                showResults();
+            }
+        }
+
+        // แสดงหน้าสรุปคะแนน
+        function showResults() {
+            // ซ่อน Progress bar
+            els.progress.container.classList.add('hidden-screen');
+            els.progress.badge.classList.add('hidden-screen');
+            
+            switchScreen('result');
+            
+            // ทำ Animation วงกลมคะแนน
+            const maxScore = quizData.length;
+            const percentage = score / maxScore;
+            
+            // รันตัวเลขคะแนนแบบ Animation
+            let currentNum = 0;
+            const scoreInterval = setInterval(() => {
+                if(currentNum >= score) {
+                    clearInterval(scoreInterval);
+                    els.result.scoreNum.innerText = score;
+                } else {
+                    currentNum++;
+                    els.result.scoreNum.innerText = currentNum;
+                }
+            }, 50);
+
+            // คำนวณเส้นขอบวงกลม SVG
+            const circleLength = 251.2; // 2 * PI * r(40)
+            const offset = circleLength - (percentage * circleLength);
+            setTimeout(() => {
+                els.result.scoreCircle.style.strokeDashoffset = offset;
+            }, 100); // ดีเลย์เล็กน้อยให้หน้าจอโหลดเสร็จก่อน
+
+            // ประเมินผลตามเกณฑ์คะแนน
+            let strokeColor = '';
+            if (score === maxScore) {
+                strokeColor = 'text-emerald-500';
+                els.result.message.innerHTML = '🏆 <span class="text-emerald-600">สุดยอด!</span> คุณมีสติและรู้หลักการเอาตัวรอดได้อย่างสมบูรณ์แบบ';
+                createConfetti(100);
+            } else if (score >= maxScore * 0.7) {
+                strokeColor = 'text-blue-500';
+                els.result.message.innerHTML = '👍 <span class="text-blue-600">เก่งมาก!</span> คุณเอาตัวรอดได้ดี แต่อย่าลืมทบทวนอีกนิดนะ';
+            } else {
+                strokeColor = 'text-rose-500';
+                els.result.message.innerHTML = '⚠️ <span class="text-rose-600">อันตราย!</span> คุณต้องศึกษาหลักการเอาชีวิตรอดให้แม่นยำกว่านี้ ลองเล่นใหม่อีกครั้ง';
+            }
+            
+            els.result.scoreCircle.classList.add(strokeColor);
+            els.result.scoreNum.classList.add(strokeColor);
+        }
+
+        // รีเซ็ตเกมเพื่อเล่นใหม่
+        function resetGame() {
+            // คืนค่าพื้นหลังกลับไปเป็นหน้าปก
+            document.body.classList.add('on-start');
+            
+            // ลบสีเก่าของวงกลมคะแนน
+            els.result.scoreCircle.className = "stroke-current";
+            els.result.scoreNum.className = "text-5xl font-black text-slate-800 block leading-none";
+            els.result.scoreCircle.style.strokeDashoffset = "251.2";
+            
+            // ซ่อนแถบ Progress ด้านบน
+            els.progress.container.classList.add('hidden-screen');
+            els.progress.badge.classList.add('hidden-screen');
+
+            // กลับไปที่หน้าปกเกม แทนที่จะเริ่มข้อ 1 ทันที
+            switchScreen('start');
+        }
+
+        // เอฟเฟกต์กระดาษโปรย (Confetti) สร้างด้วย DOM Elements
+        function createConfetti(amount = 40) {
+            const colors = ['#34d399', '#3b82f6', '#fbbf24', '#f87171', '#a78bfa']; // Tailwind colors
+            const container = document.body;
+            
+            for (let i = 0; i < amount; i++) {
+                const confetti = document.createElement('div');
+                confetti.classList.add('confetti-piece');
+                
+                // สุ่มตำแหน่งเริ่มต้น (ครึ่งบนของหน้าจอ)
+                const startX = Math.random() * window.innerWidth;
+                const startY = Math.random() * (window.innerHeight / 2) - (window.innerHeight / 2);
+                
+                confetti.style.left = `${startX}px`;
+                confetti.style.top = `${startY}px`;
+                confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                
+                // สุ่มรูปร่าง (สี่เหลี่ยม หรือ วงกลม)
+                if(Math.random() > 0.5) confetti.style.borderRadius = '50%';
+                
+                const duration = Math.random() * 2 + 1.5; 
+                
+                // แอนิเมชันตกลงมาและหมุน
+                confetti.animate([
+                    { transform: 'translate3d(0,0,0) rotate(0deg)', opacity: 1 },
+                    { transform: `translate3d(${Math.random()*200 - 100}px, ${window.innerHeight}px, 0) rotate(${Math.random()*720}deg)`, opacity: 0 }
+                ], {
+                    duration: duration * 1000,
+                    easing: 'cubic-bezier(.37,0,.63,1)',
+                    fill: 'forwards'
+                });
+                
+                container.appendChild(confetti);
+                
+                // ลบ Element ทิ้งเมื่อแอนิเมชันจบ
+                setTimeout(() => {
+                    if (confetti.parentNode) confetti.parentNode.removeChild(confetti);
+                }, duration * 1000);
+            }
+        }
+    </script>
+</body>
+</html>
